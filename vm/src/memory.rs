@@ -9,7 +9,7 @@ impl Memory {
     pub fn new(size: u8) -> Self {
         Self {
             bytes: vec![0; size.into()],
-            size: size.into(),
+            size,
         }
     }
 
