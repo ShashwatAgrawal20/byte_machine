@@ -11,18 +11,17 @@ fn main() -> Result<()> {
     // AddStack
     // PopRegister(A)
     {
-        vm.memory.write(0, 0x1)?;
+        vm.memory.write(0, 0x01)?;
         vm.memory.write(1, 60)?;
-        vm.memory.write(2, 0x1)?;
+        vm.memory.write(2, 0x01)?;
         vm.memory.write(3, 9)?;
-        vm.memory.write(4, 0x3)?;
-        vm.memory.write(5, 0x2)?;
-        vm.memory.write(6, 0)?;
+        vm.memory.write(4, 0x03)?;
+        vm.memory.write(5, 0x02)?;
         vm.step()?;
         vm.step()?;
         vm.step()?;
         vm.step()?;
-        println!("reg A = {}", vm.get_register(Registers::A));
+        println!("reg A = {}", vm.registers[Registers::A as usize]);
     }
 
     // AddRegister(A, B)
@@ -31,12 +30,11 @@ fn main() -> Result<()> {
     //     vm.registers[Registers::PC as usize] = 0;
     //     vm.registers[Registers::A as usize] = 10;
     //     vm.registers[Registers::B as usize] = 10;
-    //     vm.memory.write(0, 0x4)?;
-    //     vm.memory.write(1, 0x01)?;
-    //     println!("reg A -> {}", vm.get_register(Registers::A));
-    //     println!("reg B -> {}", vm.get_register(Registers::B));
+    //     vm.memory.write(0, 0x14)?;
+    //     println!("reg A = {}", vm.registers[Registers::A as usize]);
+    //     println!("reg B = {}", vm.registers[Registers::B as usize]);
     //     vm.step()?;
-    //     println!("reg A = {}", vm.get_register(Registers::A));
+    //     println!("reg A = {}", vm.registers[Registers::A as usize]);
     // }
     Ok(())
 }

@@ -58,7 +58,7 @@ impl Machine {
         println!(
             "PC -> {:?}   |   OPCODE -> 0x{:X}   |   INST -> {:?}",
             self.registers[Registers::PC as usize],
-            opcode,
+            opcode & 0x0F,
             instruction
         );
 
@@ -81,10 +81,6 @@ impl Machine {
             }
         };
         Ok(())
-    }
-
-    pub fn get_register(&self, r: Registers) -> u8 {
-        self.registers[r as usize]
     }
 
     fn push(&mut self, v: u8) -> Result<()> {
@@ -114,27 +110,26 @@ impl Machine {
     }
 
     fn decode(&mut self, opcode: u8) -> Result<Instruction> {
-        match opcode {
+        let optional_reg = opcode >> 4;
+        match opcode & 0x0F {
             0x00 => Ok(Instruction::Nop),
             0x01 => {
                 let value = self.fetch()?;
                 Ok(Instruction::Push(value))
             }
-            0x02 => {
-                let reg_code = self.fetch()?;
-                match Registers::from(reg_code) {
-                    Some(reg) => Ok(Instruction::PopRegister(reg)),
-                    None => Err(anyhow::anyhow!("Invalid register code: {}", reg_code)),
-                }
-            }
+            0x02 => match Registers::from(optional_reg) {
+                Some(reg) => Ok(Instruction::PopRegister(reg)),
+                None => Err(anyhow::anyhow!("Invalid register code: {}", optional_reg)),
+            },
             0x03 => Ok(Instruction::AddStack),
             0x04 => {
-                let reg_pair = self.fetch()?;
-                let reg1 = Registers::from((reg_pair >> 4) & 0x0F)
-                    .ok_or(anyhow::anyhow!("Invalid register code: {}", reg_pair >> 4))?;
-                let reg2 = Registers::from(reg_pair & 0x0F).ok_or(anyhow::anyhow!(
+                let reg1 = Registers::from(optional_reg >> 2).ok_or(anyhow::anyhow!(
                     "Invalid register code: {}",
-                    reg_pair & 0x0F
+                    optional_reg & 0x03
+                ))?;
+                let reg2 = Registers::from(optional_reg & 0x03).ok_or(anyhow::anyhow!(
+                    "Invalid register code: {}",
+                    optional_reg & 0x03
                 ))?;
                 Ok(Instruction::AddRegister(reg1, reg2))
             }
