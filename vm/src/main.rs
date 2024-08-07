@@ -11,12 +11,12 @@ fn main() -> Result<()> {
     // AddStack
     // PopRegister(A)
     {
-        vm.memory.write(0, 0x01)?;
+        vm.memory.write(0, 0x10)?;
         vm.memory.write(1, 60)?;
-        vm.memory.write(2, 0x01)?;
+        vm.memory.write(2, 0x10)?;
         vm.memory.write(3, 9)?;
-        vm.memory.write(4, 0x03)?;
-        vm.memory.write(5, 0x02)?;
+        vm.memory.write(4, 0x30)?;
+        vm.memory.write(5, 0x20)?;
         vm.step()?;
         vm.step()?;
         vm.step()?;
@@ -26,11 +26,9 @@ fn main() -> Result<()> {
 
     // AddRegister(A, B)
     // {
-    //     println!("new program start & setting up the PC to 0");
-    //     vm.registers[Registers::PC as usize] = 0;
     //     vm.registers[Registers::A as usize] = 10;
     //     vm.registers[Registers::B as usize] = 10;
-    //     vm.memory.write(0, 0x14)?;
+    //     vm.memory.write(0, 0x41)?;
     //     println!("reg A = {}", vm.registers[Registers::A as usize]);
     //     println!("reg B = {}", vm.registers[Registers::B as usize]);
     //     vm.step()?;

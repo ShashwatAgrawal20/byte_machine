@@ -58,7 +58,7 @@ impl Machine {
         println!(
             "PC -> {:?}   |   OPCODE -> 0x{:X}   |   INST -> {:?}",
             self.registers[Registers::PC as usize],
-            opcode & 0x0F,
+            opcode >> 4,
             instruction
         );
 
@@ -110,8 +110,8 @@ impl Machine {
     }
 
     fn decode(&mut self, opcode: u8) -> Result<Instruction> {
-        let optional_reg = opcode >> 4;
-        match opcode & 0x0F {
+        let optional_reg = opcode & 0x0F;
+        match opcode >> 4 {
             0x00 => Ok(Instruction::Nop),
             0x01 => {
                 let value = self.fetch()?;
@@ -125,7 +125,7 @@ impl Machine {
             0x04 => {
                 let reg1 = Registers::from(optional_reg >> 2).ok_or(anyhow::anyhow!(
                     "Invalid register code: {}",
-                    optional_reg & 0x03
+                    optional_reg >> 2
                 ))?;
                 let reg2 = Registers::from(optional_reg & 0x03).ok_or(anyhow::anyhow!(
                     "Invalid register code: {}",
