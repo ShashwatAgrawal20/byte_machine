@@ -112,17 +112,17 @@ impl Machine {
     fn decode(&mut self, opcode: u8) -> Result<Instruction> {
         let optional_reg = opcode & 0x0F;
         match opcode >> 4 {
-            0x00 => Ok(Instruction::Nop),
-            0x01 => {
+            0x0 => Ok(Instruction::Nop),
+            0x1 => {
                 let value = self.fetch()?;
                 Ok(Instruction::Push(value))
             }
-            0x02 => match Registers::from(optional_reg) {
+            0x2 => match Registers::from(optional_reg) {
                 Some(reg) => Ok(Instruction::PopRegister(reg)),
                 None => Err(anyhow::anyhow!("Invalid register code: {}", optional_reg)),
             },
-            0x03 => Ok(Instruction::AddStack),
-            0x04 => {
+            0x3 => Ok(Instruction::AddStack),
+            0x4 => {
                 let reg1 = Registers::from(optional_reg >> 2).ok_or(anyhow::anyhow!(
                     "Invalid register code: {}",
                     optional_reg >> 2

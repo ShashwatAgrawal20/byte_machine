@@ -1,38 +1,35 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 mod memory;
 mod vm;
 use vm::{Machine, Registers};
 
+use std::{env, fs};
+
 fn main() -> Result<()> {
     let mut vm = Machine::new();
 
-    // Push(60)
-    // Push(9)
-    // AddStack
-    // PopRegister(A)
-    {
-        vm.memory.write(0, 0x10)?;
-        vm.memory.write(1, 60)?;
-        vm.memory.write(2, 0x10)?;
-        vm.memory.write(3, 9)?;
-        vm.memory.write(4, 0x30)?;
-        vm.memory.write(5, 0x20)?;
-        vm.step()?;
-        vm.step()?;
-        vm.step()?;
-        vm.step()?;
-        println!("reg A = {}", vm.registers[Registers::A as usize]);
-    }
+    let bytes: Vec<u8> = fs::read_to_string(
+        env::args()
+            .nth(1)
+            .context("where's the program file you dumbass!")?,
+    )
+    .context("can't read the file, try giving relative path from crate root.")?
+    .split_whitespace()
+    .filter_map(|s| {
+        if s.starts_with("0x") {
+            u8::from_str_radix(&s[2..], 16).ok()
+        } else {
+            s.parse().ok()
+        }
+    })
+    .collect();
 
-    // AddRegister(A, B)
-    // {
-    //     vm.registers[Registers::A as usize] = 10;
-    //     vm.registers[Registers::B as usize] = 10;
-    //     vm.memory.write(0, 0x41)?;
-    //     println!("reg A = {}", vm.registers[Registers::A as usize]);
-    //     println!("reg B = {}", vm.registers[Registers::B as usize]);
-    //     vm.step()?;
-    //     println!("reg A = {}", vm.registers[Registers::A as usize]);
-    // }
+    println!("{:?}", bytes);
+    vm.memory.load(&bytes)?;
+    while vm.registers[Registers::PC as usize] != bytes.len() as u8 {
+        vm.step()?
+    }
+    println!("reg A = {}", vm.registers[Registers::A as usize]);
+
     Ok(())
 }
