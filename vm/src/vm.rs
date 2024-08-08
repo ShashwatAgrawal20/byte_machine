@@ -37,10 +37,12 @@ pub enum Instruction {
     PopRegister(Registers),
     AddStack,
     AddRegister(Registers, Registers),
+    Halt,
 }
 
 pub struct Machine {
     pub registers: [u8; 8],
+    pub halt: bool,
     pub memory: Memory,
 }
 
@@ -48,6 +50,7 @@ impl Machine {
     pub fn new() -> Self {
         Self {
             registers: [0; 8],
+            halt: false,
             memory: Memory::new(0xff),
         }
     }
@@ -77,6 +80,10 @@ impl Machine {
             }
             Instruction::AddRegister(r1, r2) => {
                 self.registers[r1 as usize] += self.registers[r2 as usize];
+                Ok(())
+            }
+            Instruction::Halt => {
+                self.halt = true;
                 Ok(())
             }
         };
@@ -133,6 +140,7 @@ impl Machine {
                 ))?;
                 Ok(Instruction::AddRegister(reg1, reg2))
             }
+            0xF => Ok(Instruction::Halt),
             _ => Err(anyhow::anyhow!("Unknown opcode: {:X}", opcode)),
         }
     }

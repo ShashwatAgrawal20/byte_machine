@@ -32,9 +32,7 @@ impl Memory {
 
     pub fn load(&mut self, program_vec: &[u8]) -> Result<()> {
         for (index, byte) in program_vec.iter().enumerate() {
-            if let Err(e) = self.write(0 + (index as u8), *byte) {
-                return Err(e);
-            }
+            self.write(index as u8, *byte)?
         }
         Ok(())
     }
