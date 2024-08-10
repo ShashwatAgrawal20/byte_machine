@@ -1,14 +1,17 @@
 use anyhow::Result;
-mod memory;
-mod vm;
-use vm::{Machine, Registers};
-
 use std::{
     env,
     fs::File,
-    io::{BufRead, BufReader},
+    io::{BufReader, Read},
     path::Path,
 };
+
+mod interrupts;
+mod memory;
+mod vm;
+
+use interrupts::halt_interrupt;
+use vm::{Machine, Registers};
 
 fn main() -> Result<()> {
     let mut vm = Machine::new();
@@ -20,13 +23,7 @@ fn main() -> Result<()> {
         .map_err(|_| anyhow::anyhow!("can't open the file, try giving a valid path."))?;
 
     let mut bytes: Vec<u8> = Vec::new();
-    for line in BufReader::new(&file).lines() {
-        for token in line?.split_whitespace() {
-            bytes.push(
-                u8::from_str_radix(token, 16).map_err(|x| anyhow::anyhow!("parse fail: {}", x))?,
-            );
-        }
-    }
+    BufReader::new(file).read_to_end(&mut bytes)?;
 
     println!(
         "[{}]",
@@ -36,6 +33,7 @@ fn main() -> Result<()> {
             .collect::<Vec<_>>()
             .join(" ")
     );
+    vm.define_interrupt(0xF, halt_interrupt);
     vm.memory.load(&bytes)?;
     while !vm.halt {
         vm.step()?

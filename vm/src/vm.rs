@@ -1,6 +1,9 @@
 use anyhow::Result;
+use std::collections::HashMap;
 
 use crate::memory::Memory;
+
+type Interrupt = fn(&mut Machine) -> Result<()>;
 
 #[derive(Debug)]
 pub enum Registers {
@@ -37,13 +40,14 @@ pub enum Instruction {
     PopRegister(Registers),
     AddStack,
     AddRegister(Registers, Registers),
-    Halt,
+    Interrupt(u8),
 }
 
 pub struct Machine {
     pub registers: [u8; 8],
     pub halt: bool,
     pub memory: Memory,
+    interrupts: HashMap<u8, Interrupt>,
 }
 
 impl Machine {
@@ -51,8 +55,13 @@ impl Machine {
         Self {
             registers: [0; 8],
             halt: false,
+            interrupts: HashMap::new(),
             memory: Memory::new(0xff),
         }
+    }
+
+    pub fn define_interrupt(&mut self, index: u8, f: Interrupt) {
+        self.interrupts.insert(index, f);
     }
 
     pub fn step(&mut self) -> Result<()> {
@@ -82,9 +91,12 @@ impl Machine {
                 self.registers[r1 as usize] += self.registers[r2 as usize];
                 Ok(())
             }
-            Instruction::Halt => {
-                self.halt = true;
-                Ok(())
+            Instruction::Interrupt(signal) => {
+                let signal_function = self.interrupts.get(&signal).ok_or(anyhow::anyhow!(
+                    "0x{:X} is not a valid signal, dumbass!",
+                    signal
+                ))?;
+                signal_function(self)
             }
         };
         Ok(())
@@ -117,30 +129,26 @@ impl Machine {
     }
 
     fn decode(&mut self, opcode: u8) -> Result<Instruction> {
-        let optional_reg = opcode & 0x0F;
+        let args = opcode & 0x0F;
         match opcode >> 4 {
             0x0 => Ok(Instruction::Nop),
             0x1 => {
                 let value = self.fetch()?;
                 Ok(Instruction::Push(value))
             }
-            0x2 => match Registers::from(optional_reg) {
+            0x2 => match Registers::from(args) {
                 Some(reg) => Ok(Instruction::PopRegister(reg)),
-                None => Err(anyhow::anyhow!("Invalid register code: {}", optional_reg)),
+                None => Err(anyhow::anyhow!("Invalid register code: {}", args)),
             },
             0x3 => Ok(Instruction::AddStack),
             0x4 => {
-                let reg1 = Registers::from(optional_reg >> 2).ok_or(anyhow::anyhow!(
-                    "Invalid register code: {}",
-                    optional_reg >> 2
-                ))?;
-                let reg2 = Registers::from(optional_reg & 0x03).ok_or(anyhow::anyhow!(
-                    "Invalid register code: {}",
-                    optional_reg & 0x03
-                ))?;
+                let reg1 = Registers::from(args >> 2)
+                    .ok_or(anyhow::anyhow!("Invalid register code: {}", args >> 2))?;
+                let reg2 = Registers::from(args & 0x03)
+                    .ok_or(anyhow::anyhow!("Invalid register code: {}", args & 0x03))?;
                 Ok(Instruction::AddRegister(reg1, reg2))
             }
-            0xF => Ok(Instruction::Halt),
+            0xF => Ok(Instruction::Interrupt(args)),
             _ => Err(anyhow::anyhow!("Unknown opcode: {:X}", opcode)),
         }
     }
