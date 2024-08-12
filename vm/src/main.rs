@@ -6,13 +6,10 @@ use std::{
     path::Path,
 };
 
-mod interrupts;
-mod memory;
-mod vm;
-
-use interrupts::halt_interrupt;
+use vm::interrupts::halt_interrupt;
 use vm::{Machine, Registers};
 
+#[allow(dead_code)]
 fn main() -> Result<()> {
     let mut vm = Machine::new();
 

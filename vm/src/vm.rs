@@ -71,7 +71,7 @@ impl Machine {
             "PC -> {:?}   |   OPCODE -> 0x{:X}   |   INST -> {:?}",
             self.registers[Registers::PC as usize],
             opcode >> 4,
-            instruction
+            instruction,
         );
 
         let _ = match instruction {

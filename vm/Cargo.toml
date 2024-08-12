@@ -11,5 +11,8 @@ path = "src/main.rs"
 [[bin]]
 name = "asm"
 
+[lib]
+path = "src/lib.rs"
+
 [dependencies]
 anyhow = "1.0.86"
