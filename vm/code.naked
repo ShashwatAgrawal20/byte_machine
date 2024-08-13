@@ -1,1 +1,5 @@
-10 0A 10 01 30 20 FF
+Push 60
+Push 9
+AddStack
+PopRegister A
+Interrupt 15

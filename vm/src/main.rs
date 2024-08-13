@@ -32,6 +32,9 @@ fn main() -> Result<()> {
     );
     vm.define_interrupt(0xF, halt_interrupt);
     vm.memory.load(&bytes)?;
+    if bytes.len() == 0 {
+        return Err(anyhow::anyhow!("empty binary"));
+    }
     while !vm.halt {
         vm.step()?
     }

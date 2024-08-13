@@ -5,7 +5,8 @@ use crate::memory::Memory;
 
 type Interrupt = fn(&mut Machine) -> Result<()>;
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
+#[repr(u8)]
 pub enum Registers {
     A,
     B,
@@ -31,6 +32,20 @@ impl Registers {
             _ => None,
         }
     }
+
+    pub fn from_str_custom(value: &str) -> Option<Self> {
+        match value {
+            "A" => Some(Registers::A),
+            "B" => Some(Registers::B),
+            "C" => Some(Registers::C),
+            "D" => Some(Registers::D),
+            "SP" => Some(Registers::SP),
+            "PC" => Some(Registers::PC),
+            "BP" => Some(Registers::BP),
+            "Flags" => Some(Registers::Flags),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -48,6 +63,12 @@ pub struct Machine {
     pub halt: bool,
     pub memory: Memory,
     interrupts: HashMap<u8, Interrupt>,
+}
+
+impl Default for Machine {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Machine {
