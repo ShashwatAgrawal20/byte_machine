@@ -1,62 +1,9 @@
 use anyhow::Result;
 use std::collections::HashMap;
 
-use crate::memory::Memory;
+use crate::{instructions::Instruction, memory::Memory, registers::Registers};
 
 type Interrupt = fn(&mut Machine) -> Result<()>;
-
-#[derive(Debug, Copy, Clone)]
-#[repr(u8)]
-pub enum Registers {
-    A,
-    B,
-    C,
-    D,
-    SP,
-    PC,
-    BP,
-    Flags,
-}
-
-impl Registers {
-    fn from(value: u8) -> Option<Self> {
-        match value {
-            0 => Some(Registers::A),
-            1 => Some(Registers::B),
-            2 => Some(Registers::C),
-            3 => Some(Registers::D),
-            4 => Some(Registers::SP),
-            5 => Some(Registers::PC),
-            6 => Some(Registers::BP),
-            7 => Some(Registers::Flags),
-            _ => None,
-        }
-    }
-
-    pub fn from_str_custom(value: &str) -> Option<Self> {
-        match value {
-            "A" => Some(Registers::A),
-            "B" => Some(Registers::B),
-            "C" => Some(Registers::C),
-            "D" => Some(Registers::D),
-            "SP" => Some(Registers::SP),
-            "PC" => Some(Registers::PC),
-            "BP" => Some(Registers::BP),
-            "Flags" => Some(Registers::Flags),
-            _ => None,
-        }
-    }
-}
-
-#[derive(Debug)]
-pub enum Instruction {
-    Nop,
-    Push(u8),
-    PopRegister(Registers),
-    AddStack,
-    AddRegister(Registers, Registers),
-    Interrupt(u8),
-}
 
 pub struct Machine {
     pub registers: [u8; 8],
@@ -157,15 +104,15 @@ impl Machine {
                 let value = self.fetch()?;
                 Ok(Instruction::Push(value))
             }
-            0x2 => match Registers::from(args) {
+            0x2 => match Registers::from_u8_custom(args) {
                 Some(reg) => Ok(Instruction::PopRegister(reg)),
                 None => Err(anyhow::anyhow!("Invalid register code: {}", args)),
             },
             0x3 => Ok(Instruction::AddStack),
             0x4 => {
-                let reg1 = Registers::from(args >> 2)
+                let reg1 = Registers::from_u8_custom(args >> 2)
                     .ok_or(anyhow::anyhow!("Invalid register code: {}", args >> 2))?;
-                let reg2 = Registers::from(args & 0x03)
+                let reg2 = Registers::from_u8_custom(args & 0x03)
                     .ok_or(anyhow::anyhow!("Invalid register code: {}", args & 0x03))?;
                 Ok(Instruction::AddRegister(reg1, reg2))
             }

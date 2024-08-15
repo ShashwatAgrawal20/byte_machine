@@ -9,7 +9,6 @@ use std::{
 use vm::interrupts::halt_interrupt;
 use vm::{Machine, Registers};
 
-#[allow(dead_code)]
 fn main() -> Result<()> {
     let mut vm = Machine::new();
 
@@ -32,7 +31,7 @@ fn main() -> Result<()> {
     );
     vm.define_interrupt(0xF, halt_interrupt);
     vm.memory.load(&bytes)?;
-    if bytes.len() == 0 {
+    if bytes.is_empty() {
         return Err(anyhow::anyhow!("empty binary"));
     }
     while !vm.halt {
