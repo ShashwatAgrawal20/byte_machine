@@ -5,10 +5,10 @@ pub enum Registers {
     B,
     C,
     D,
-    SP,
-    PC,
-    BP,
-    Flags,
+    E,
+    F,
+    H,
+    L,
 }
 
 impl Registers {
@@ -18,10 +18,10 @@ impl Registers {
             1 => Some(Registers::B),
             2 => Some(Registers::C),
             3 => Some(Registers::D),
-            4 => Some(Registers::SP),
-            5 => Some(Registers::PC),
-            6 => Some(Registers::BP),
-            7 => Some(Registers::Flags),
+            4 => Some(Registers::E),
+            5 => Some(Registers::F),
+            6 => Some(Registers::H),
+            7 => Some(Registers::L),
             _ => None,
         }
     }
@@ -32,10 +32,10 @@ impl Registers {
             "B" => Some(Registers::B),
             "C" => Some(Registers::C),
             "D" => Some(Registers::D),
-            "SP" => Some(Registers::SP),
-            "PC" => Some(Registers::PC),
-            "BP" => Some(Registers::BP),
-            "Flags" => Some(Registers::Flags),
+            "E" => Some(Registers::E),
+            "F" => Some(Registers::F),
+            "H" => Some(Registers::H),
+            "L" => Some(Registers::L),
             _ => None,
         }
     }

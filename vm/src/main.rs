@@ -30,13 +30,18 @@ fn main() -> Result<()> {
             .join(" ")
     );
     vm.define_interrupt(0xF, halt_interrupt);
+    // vm.set_register(Registers::SP, 200);
     vm.memory.load(&bytes)?;
     if bytes.is_empty() {
         return Err(anyhow::anyhow!("empty binary"));
     }
     while !vm.halt {
-        vm.step()?
+        // println!("{}", vm.state());
+        vm.step()?;
+        // break;
     }
     println!("reg A = {}", vm.registers[Registers::A as usize]);
+
+    vm.memory.write(0xfffe, 10)?;
     Ok(())
 }

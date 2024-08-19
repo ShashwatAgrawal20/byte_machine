@@ -46,6 +46,15 @@ impl LocalToAsm for Instruction {
                 })?;
                 Ok(Instruction::PopRegister(reg))
             }
+            "PushRegister" => {
+                let register = parts.get(1).ok_or_else(|| {
+                    anyhow::anyhow!("PopRegister instruction requires a register")
+                })?;
+                let reg = Registers::from_str_custom(register).ok_or_else(|| {
+                    anyhow::anyhow!("Invalid register for PopRegister instruction")
+                })?;
+                Ok(Instruction::PushRegister(reg))
+            }
             "AddStack" => Ok(Instruction::AddStack),
             "AddRegister" => {
                 let reg1 = parts.get(1).ok_or_else(|| {
@@ -93,6 +102,10 @@ impl LocalToAsm for Instruction {
             }
             Instruction::PopRegister(register) => {
                 let opcode = 0x20;
+                EncodedInstruction::SingleByte(opcode | ((*register as u8) & 0x0F))
+            }
+            Instruction::PushRegister(register) => {
+                let opcode = 0x50;
                 EncodedInstruction::SingleByte(opcode | ((*register as u8) & 0x0F))
             }
             Instruction::AddStack => EncodedInstruction::SingleByte(0x30),
