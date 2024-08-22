@@ -2,4 +2,6 @@ Push 60
 Push 9
 AddStack
 PopRegister A
+LoadImmediate A 255
+LoadMemory A 0xfffe
 Interrupt 15

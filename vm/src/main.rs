@@ -12,6 +12,14 @@ use vm::{Machine, Registers};
 fn main() -> Result<()> {
     let mut vm = Machine::new();
 
+    vm.memory.write(0xfffe, 69)?;
+    //
+    // vm.memory.write(0, 0x70)?;
+    // vm.memory.write(1, 0xff)?;
+    // vm.memory.write(2, 0xfe)?;
+    // vm.memory.write(3, 0xff)?;
+    // vm.step()?;
+
     let file =
         File::open(Path::new(&env::args().nth(1).ok_or_else(|| {
             anyhow::anyhow!("where's the program file you dumbass!")
@@ -35,6 +43,7 @@ fn main() -> Result<()> {
         return Err(anyhow::anyhow!("empty binary"));
     }
     while !vm.halt {
+        println!("{}", vm.state());
         vm.step()?
     }
     println!("reg A = {}", vm.registers[Registers::A as usize]);

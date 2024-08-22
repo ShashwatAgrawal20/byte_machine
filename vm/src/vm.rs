@@ -34,7 +34,7 @@ impl Machine {
 
     pub fn state(&self) -> String {
         format!(
-            "A: {} | B: {} | C: {} | D: {} SP: {} | PC: {} | BP: {} Flags: {:X}",
+            "\nA: {} | B: {} | C: {} | D: {} SP: {} | PC: {} | BP: {} Flags: {:X}",
             self.get_register(Registers::A),
             self.get_register(Registers::B),
             self.get_register(Registers::C),
@@ -62,7 +62,7 @@ impl Machine {
         let opcode = self.fetch()?;
         let instruction = self.decode(opcode)?;
         println!(
-            "PC -> {:?}   |   OPCODE -> 0x{:X}   |   INST -> {:?}",
+            "PC -> {:?}   |   OPCODE -> 0x{:X}   |   INST -> {:?}\n",
             // self.registers[Registers::PC as usize],
             self.pc,
             opcode >> 4,
@@ -90,13 +90,22 @@ impl Machine {
                 self.registers[r1 as usize] += self.registers[r2 as usize];
                 Ok(())
             }
+            Instruction::LoadImmediate(reg, value) => {
+                self.set_register(reg, value);
+                Ok(())
+            }
+            Instruction::LoadMemory(reg, memaddress) => {
+                let value = self.memory.read(memaddress)?;
+                self.set_register(reg, value);
+                Ok(())
+            }
             Instruction::Interrupt(signal) => {
                 let signal_function = self.interrupts.get(&signal).ok_or(anyhow::anyhow!(
                     "0x{:X} is not a valid signal, dumbass!",
                     signal
                 ))?;
                 signal_function(self)
-            }
+            } // _ => todo!(),
         };
         Ok(())
     }
@@ -158,6 +167,24 @@ impl Machine {
                 Some(reg) => Ok(Instruction::PushRegister(reg)),
                 None => Err(anyhow::anyhow!("Invalid register code: {}", args)),
             },
+            // LoadImmediate(Register, value)
+            // 0110 rrrr | iiiiiiii
+            0x6 => {
+                let reg = Registers::from_u8_custom(args)
+                    .ok_or(anyhow::anyhow!("Invalid register code: {}", args >> 2))?;
+                let value = self.fetch()?;
+                Ok(Instruction::LoadImmediate(reg, value))
+            }
+            // LoadMemory(Register, address)
+            // 0111 rrrr | aaaaaaaa | aaaaaaaa
+            0x7 => {
+                let reg = Registers::from_u8_custom(args)
+                    .ok_or(anyhow::anyhow!("Invalid register code: {}", args >> 2))?;
+                let value = (self.fetch()? as u16) << 8 | self.fetch()? as u16;
+
+                // println!("{:02X}", value);
+                Ok(Instruction::LoadMemory(reg, value))
+            }
             0xF => Ok(Instruction::Interrupt(args)),
             _ => Err(anyhow::anyhow!("Unknown opcode: {:X}", opcode)),
         }
