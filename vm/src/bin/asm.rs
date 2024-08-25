@@ -7,7 +7,7 @@ use std::{
     path::Path,
 };
 
-use vm::{Instruction, Registers};
+use vm::{ALUOperation, Instruction, Registers};
 
 #[derive(Debug)]
 enum EncodedInstruction {
@@ -57,38 +57,13 @@ impl LocalToAsm for Instruction {
                 Ok(Instruction::PushRegister(reg))
             }
             "AddStack" => Ok(Instruction::AddStack),
-            "AddRegister" => {
-                let reg1 = parts
-                    .get(1)
-                    .ok_or_else(|| anyhow::anyhow!("Where's the 1st register dawg?"))
-                    .and_then(|reg_str| {
-                        Registers::from_str_custom(reg_str).ok_or_else(|| {
-                            anyhow::anyhow!("Invalid first register for AddRegister instruction")
-                        })
-                    })?;
-                let reg2 = parts
-                    .get(1)
-                    .ok_or_else(|| anyhow::anyhow!("Where's the 2nd register dawg?"))
-                    .and_then(|reg_str| {
-                        Registers::from_str_custom(reg_str).ok_or_else(|| {
-                            anyhow::anyhow!("Invalid second register for AddRegister instruction")
-                        })
-                    })?;
-
-                if (reg1 as u8) > 3 || (reg2 as u8) > 3 {
-                    return Err(anyhow::anyhow!(
-                        "you dumbass, you can also specify registers A, B, C, D in AddRegister"
-                    ));
-                }
-                Ok(Instruction::AddRegister(reg1, reg2))
-            }
             "LoadImmediate" => {
                 let reg = parts
                     .get(1)
                     .ok_or_else(|| anyhow::anyhow!("LoadImmediate instruction requires a register"))
                     .and_then(|reg_str| {
                         Registers::from_str_custom(reg_str).ok_or_else(|| {
-                            anyhow::anyhow!("Invalid register for AddRegister instruction")
+                            anyhow::anyhow!("Invalid register for LoadImmediate instruction")
                         })
                     })?;
 
@@ -121,6 +96,59 @@ impl LocalToAsm for Instruction {
 
                 Ok(Instruction::LoadMemory(reg, memory))
             }
+            "Store" => {
+                let reg = parts
+                    .get(1)
+                    .ok_or_else(|| anyhow::anyhow!("Store instruction requires a register"))
+                    .and_then(|reg_str| {
+                        Registers::from_str_custom(reg_str).ok_or_else(|| {
+                            anyhow::anyhow!("Invalid register for Store instruction")
+                        })
+                    })?;
+
+                let memory_str = parts.get(2).ok_or_else(|| {
+                    anyhow::anyhow!("Store instruction requires a memory address")
+                })?;
+                let memory = u16::from_str_radix(
+                    memory_str.strip_prefix("0x").unwrap_or(memory_str),
+                    if memory_str.starts_with("0x") { 16 } else { 10 },
+                )
+                .map_err(|_| anyhow::anyhow!("Invalid address for Store instruction"))?;
+
+                // println!("{:?}, {}", reg, memory);
+
+                Ok(Instruction::Store(reg, memory))
+            }
+            "ALU" => {
+                let operation = parts
+                    .get(1)
+                    .ok_or_else(|| anyhow::anyhow!("ALU instruction requires a operation"))
+                    .and_then(|operation_str| {
+                        ALUOperation::from_str_custom(operation_str)
+                            .ok_or_else(|| anyhow::anyhow!("Invalid Operation for ALU"))
+                    })?;
+
+                let reg1 = parts
+                    .get(2)
+                    .ok_or_else(|| anyhow::anyhow!("Where's the 1st register dawg?"))
+                    .and_then(|reg_str| {
+                        Registers::from_str_custom(reg_str).ok_or_else(|| {
+                            anyhow::anyhow!("Invalid first register for ALU instruction")
+                        })
+                    })?;
+                let reg2 = parts
+                    .get(3)
+                    .ok_or_else(|| anyhow::anyhow!("Where's the 2nd register dawg?"))
+                    .and_then(|reg_str| {
+                        Registers::from_str_custom(reg_str).ok_or_else(|| {
+                            anyhow::anyhow!("Invalid second register for ALU instruction")
+                        })
+                    })?;
+
+                // println!("{:?}, {:?}, {:?}", operation, reg1, reg2);
+
+                Ok(Instruction::ALU(operation, reg1, reg2))
+            }
             "Interrupt" => {
                 let value = parts
                     .get(1)
@@ -148,27 +176,36 @@ impl LocalToAsm for Instruction {
                 EncodedInstruction::SingleByte(opcode | ((*register as u8) & 0x0F))
             }
             Instruction::PushRegister(register) => {
-                let opcode = 0x50;
+                let opcode = 0x30;
                 EncodedInstruction::SingleByte(opcode | ((*register as u8) & 0x0F))
             }
-            Instruction::AddStack => EncodedInstruction::SingleByte(0x30),
-            Instruction::AddRegister(reg1, reg2) => {
-                let opcode = 0x40;
-                EncodedInstruction::SingleByte(
-                    (opcode | ((*reg1 as u8) & 0x03) << 2) | ((*reg2 as u8) & 0x03),
-                )
-            }
+            Instruction::AddStack => EncodedInstruction::SingleByte(0x40),
             Instruction::LoadImmediate(reg, value) => {
-                let opcode = 0x60;
+                let opcode = 0x50;
                 EncodedInstruction::TwoBytes(opcode | ((*reg as u8) & 0x0F), *value)
             }
             Instruction::LoadMemory(reg, address) => {
-                let opcode = 0x70;
+                let opcode = 0x60;
 
                 EncodedInstruction::ThreeBytes(
                     opcode | ((*reg as u8) & 0x0F),
                     (address >> 8) as u8,
                     (address & 0x00FF) as u8,
+                )
+            }
+            Instruction::Store(reg, address) => {
+                let opcode = 0x70;
+                EncodedInstruction::ThreeBytes(
+                    opcode | ((*reg as u8) & 0x0F),
+                    (address >> 8) as u8,
+                    (address & 0x00FF) as u8,
+                )
+            }
+            Instruction::ALU(operation, reg1, reg2) => {
+                let opcode = 0x80;
+                EncodedInstruction::TwoBytes(
+                    opcode | ((*operation as u8) & 0xF),
+                    ((*reg1 as u8) << 4) | (*reg2 as u8),
                 )
             }
             Instruction::Interrupt(value) => {
@@ -190,6 +227,9 @@ fn main() -> Result<()> {
     let mut bytes: Vec<u8> = Vec::new();
     for line in BufReader::new(&file).lines() {
         let line = line?;
+        if line.trim().is_empty() {
+            continue;
+        }
         let parts: Vec<&str> = line.split_whitespace().collect();
         let result = <Instruction as LocalToAsm>::from(parts)?;
         let encoded = <Instruction as LocalToAsm>::encode_u8(&result);

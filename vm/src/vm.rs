@@ -1,7 +1,11 @@
 use anyhow::Result;
 use std::collections::HashMap;
 
-use crate::{instructions::Instruction, memory::Memory, registers::Registers};
+use crate::{
+    instructions::{ALUOperation, Instruction},
+    memory::Memory,
+    registers::{Flags, Registers},
+};
 
 type Interrupt = fn(&mut Machine) -> Result<()>;
 
@@ -20,6 +24,7 @@ impl Default for Machine {
     }
 }
 
+#[allow(dead_code)]
 impl Machine {
     pub fn new() -> Self {
         Self {
@@ -34,7 +39,7 @@ impl Machine {
 
     pub fn state(&self) -> String {
         format!(
-            "\nA: {} | B: {} | C: {} | D: {} SP: {} | PC: {} | BP: {} Flags: {:X}",
+            "A: {} | B: {} | C: {} | D: {} SP: {} | PC: {} | BP: {} Flags: {:X}\n",
             self.get_register(Registers::A),
             self.get_register(Registers::B),
             self.get_register(Registers::C),
@@ -62,7 +67,7 @@ impl Machine {
         let opcode = self.fetch()?;
         let instruction = self.decode(opcode)?;
         println!(
-            "PC -> {:?}   |   OPCODE -> 0x{:X}   |   INST -> {:?}\n",
+            "\nPC -> {:?}   |   OPCODE -> 0x{:X}   |   INST -> {:?}",
             // self.registers[Registers::PC as usize],
             self.pc,
             opcode >> 4,
@@ -84,10 +89,9 @@ impl Machine {
             Instruction::AddStack => {
                 let a = self.pop()?;
                 let b = self.pop()?;
-                self.push(a.wrapping_add(b))
-            }
-            Instruction::AddRegister(r1, r2) => {
-                self.registers[r1 as usize] += self.registers[r2 as usize];
+                let (result, overflow) = a.overflowing_add(b);
+                self.push(result)?;
+                self.set_flag(Flags::Overflow, overflow);
                 Ok(())
             }
             Instruction::LoadImmediate(reg, value) => {
@@ -97,6 +101,36 @@ impl Machine {
             Instruction::LoadMemory(reg, memaddress) => {
                 let value = self.memory.read(memaddress)?;
                 self.set_register(reg, value);
+                Ok(())
+            }
+            Instruction::Store(reg, memaddress) => {
+                let value = self.get_register(reg);
+                self.memory.write(memaddress, value)?;
+                // println!("{:?}, {}", reg, self.memory.read(memaddress)?);
+                Ok(())
+            }
+            Instruction::ALU(operation, reg1, reg2) => {
+                let (result, overflow) = match operation {
+                    ALUOperation::Add => self
+                        .get_register(reg1)
+                        .overflowing_add(self.get_register(reg2)),
+                    ALUOperation::Sub => self
+                        .get_register(reg1)
+                        .overflowing_sub(self.get_register(reg2)),
+                    ALUOperation::Mul => self
+                        .get_register(reg1)
+                        .overflowing_mul(self.get_register(reg2)),
+                    ALUOperation::Div => self
+                        .get_register(reg1)
+                        .overflowing_div(self.get_register(reg2)),
+                };
+
+                // println!("overflow = {overflow}");
+
+                self.set_register(reg1, result);
+                self.set_flag(Flags::Zero, result == 0);
+                self.set_flag(Flags::Overflow, overflow);
+
                 Ok(())
             }
             Instruction::Interrupt(signal) => {
@@ -143,6 +177,33 @@ impl Machine {
         Ok(opcode)
     }
 
+    fn set_flag(&mut self, flag: Flags, condition: bool) {
+        // println!("Registers::Flags = {}", self.get_register(Registers::Flags));
+
+        if condition {
+            self.set_register(
+                Registers::Flags,
+                self.get_register(Registers::Flags) | flag as u8,
+            );
+        } else {
+            self.set_register(
+                Registers::Flags,
+                self.get_register(Registers::Flags) & !(flag as u8),
+            );
+        }
+    }
+
+    pub fn clear_flag(&mut self, flag: Flags) {
+        self.set_register(
+            Registers::Flags,
+            self.get_register(Registers::Flags) & !(flag as u8),
+        );
+    }
+
+    fn is_flag_set(&self, flag: Flags) -> bool {
+        self.get_register(Registers::Flags) & flag as u8 != 0
+    }
+
     fn decode(&mut self, opcode: u8) -> Result<Instruction> {
         let args = opcode & 0x0F;
         match opcode >> 4 {
@@ -155,35 +216,50 @@ impl Machine {
                 Some(reg) => Ok(Instruction::PopRegister(reg)),
                 None => Err(anyhow::anyhow!("Invalid register code: {}", args)),
             },
-            0x3 => Ok(Instruction::AddStack),
-            0x4 => {
-                let reg1 = Registers::from_u8_custom(args >> 2)
-                    .ok_or(anyhow::anyhow!("Invalid register code: {}", args >> 2))?;
-                let reg2 = Registers::from_u8_custom(args & 0x03)
-                    .ok_or(anyhow::anyhow!("Invalid register code: {}", args & 0x03))?;
-                Ok(Instruction::AddRegister(reg1, reg2))
-            }
-            0x5 => match Registers::from_u8_custom(args) {
+            0x3 => match Registers::from_u8_custom(args) {
                 Some(reg) => Ok(Instruction::PushRegister(reg)),
                 None => Err(anyhow::anyhow!("Invalid register code: {}", args)),
             },
+            0x4 => Ok(Instruction::AddStack),
             // LoadImmediate(Register, value)
             // 0110 rrrr | iiiiiiii
-            0x6 => {
+            0x5 => {
                 let reg = Registers::from_u8_custom(args)
-                    .ok_or(anyhow::anyhow!("Invalid register code: {}", args >> 2))?;
+                    .ok_or(anyhow::anyhow!("Invalid register code: {}", args))?;
                 let value = self.fetch()?;
                 Ok(Instruction::LoadImmediate(reg, value))
             }
             // LoadMemory(Register, address)
             // 0111 rrrr | aaaaaaaa | aaaaaaaa
-            0x7 => {
+            0x6 => {
                 let reg = Registers::from_u8_custom(args)
-                    .ok_or(anyhow::anyhow!("Invalid register code: {}", args >> 2))?;
+                    .ok_or(anyhow::anyhow!("Invalid register code: {}", args))?;
                 let value = (self.fetch()? as u16) << 8 | self.fetch()? as u16;
 
                 // println!("{:02X}", value);
                 Ok(Instruction::LoadMemory(reg, value))
+            }
+            // Store(Registers, u16),
+            // 1000 rrrr | aaaaaaaa | aaaaaaaa
+            0x7 => {
+                let reg = Registers::from_u8_custom(args)
+                    .ok_or(anyhow::anyhow!("Invalid register code: {}", args))?;
+                let value = (self.fetch()? as u16) << 8 | self.fetch()? as u16;
+
+                Ok(Instruction::Store(reg, value))
+            }
+            0x8 => {
+                let operation = ALUOperation::from_u8_custom(args)
+                    .ok_or(anyhow::anyhow!("Invalid operation code: {}", args))?;
+
+                let next = self.fetch()?;
+                let reg1 = Registers::from_u8_custom(next >> 4)
+                    .ok_or(anyhow::anyhow!("Invalid register code: {}", next >> 4))?;
+
+                let reg2 = Registers::from_u8_custom(next & 0xF)
+                    .ok_or(anyhow::anyhow!("Invalid register code: {}", next & 0xF))?;
+
+                Ok(Instruction::ALU(operation, reg1, reg2))
             }
             0xF => Ok(Instruction::Interrupt(args)),
             _ => Err(anyhow::anyhow!("Unknown opcode: {:X}", opcode)),

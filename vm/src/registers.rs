@@ -11,6 +11,12 @@ pub enum Registers {
     Flags,
 }
 
+#[derive(Debug, Copy, Clone)]
+pub enum Flags {
+    Zero = 1 << 1,
+    Overflow = 1 << 0,
+}
+
 impl Registers {
     pub fn from_u8_custom(value: u8) -> Option<Self> {
         match value {

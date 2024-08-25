@@ -7,12 +7,12 @@ use std::{
 };
 
 use vm::interrupts::halt_interrupt;
-use vm::{Machine, Registers};
+use vm::{Flags, Machine, Registers};
 
 fn main() -> Result<()> {
     let mut vm = Machine::new();
 
-    vm.memory.write(0xfffe, 69)?;
+    // vm.memory.write(0xfffe, 69)?;
     //
     // vm.memory.write(0, 0x70)?;
     // vm.memory.write(1, 0xff)?;
@@ -43,8 +43,10 @@ fn main() -> Result<()> {
         return Err(anyhow::anyhow!("empty binary"));
     }
     while !vm.halt {
+        vm.step()?;
         println!("{}", vm.state());
-        vm.step()?
+        vm.clear_flag(Flags::Zero);
+        vm.clear_flag(Flags::Overflow);
     }
     println!("reg A = {}", vm.registers[Registers::A as usize]);
     Ok(())
