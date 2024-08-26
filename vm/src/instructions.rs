@@ -11,11 +11,17 @@ pub enum Instruction {
     LoadMemory(Registers, u16),              // 0110 rrrr | aaaaaaaa | aaaaaaaa
     Store(Registers, u16),                   // 0111 rrrr | aaaaaaaa | aaaaaaaa
     ALU(ALUOperation, Registers, Registers), // 1000 oooo | rrrr | rrrr
-    // Jump(u16),                               // 1001 0000 | aaaaaaaa | aaaaaaaa
+    Jump(JumpTarget),                        // 1001 0000 | aaaaaaaa | aaaaaaaa
     // JumpConditional(JumpCondition, u16),     // 1010 cccc | aaaaaaaa | aaaaaaaa
     // Call(u16),                               // 1011 0000 | aaaaaaaa | aaaaaaaa
     // Return,                                  // 1100 0000
     Interrupt(u8), // 1111 iiii
+}
+
+#[derive(Debug)]
+pub enum JumpTarget {
+    Address(u16),
+    Label(String),
 }
 
 #[derive(Debug, Copy, Clone)]

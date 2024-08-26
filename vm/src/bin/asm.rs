@@ -1,13 +1,14 @@
 use anyhow::Result;
 
 use std::{
+    collections::HashMap,
     env,
     fs::File,
     io::{stdout, BufRead, BufReader, Write},
     path::Path,
 };
 
-use vm::{ALUOperation, Instruction, Registers};
+use vm::{ALUOperation, Instruction, JumpTarget, Registers};
 
 #[derive(Debug)]
 enum EncodedInstruction {
@@ -20,10 +21,27 @@ trait LocalToAsm {
     fn from(instruction: Vec<&str>) -> Result<Self>
     where
         Self: Sized;
-    fn encode_u8(&self) -> EncodedInstruction;
+    fn encode_u8(&self) -> Result<EncodedInstruction>;
+    fn size(&self) -> u8;
 }
 
 impl LocalToAsm for Instruction {
+    fn size(&self) -> u8 {
+        match self {
+            Instruction::Nop => 1,
+            Instruction::Push(_) => 2,
+            Instruction::PopRegister(_) => 1,
+            Instruction::PushRegister(_) => 1,
+            Instruction::AddStack => 1,
+            Instruction::LoadImmediate(_, _) => 2,
+            Instruction::LoadMemory(_, _) => 3,
+            Instruction::Store(_, _) => 3,
+            Instruction::ALU(_, _, _) => 2,
+            Instruction::Jump(_) => 3,
+            Instruction::Interrupt(_) => 1,
+        }
+    }
+
     fn from(parts: Vec<&str>) -> Result<Self> {
         match *parts
             .first()
@@ -149,6 +167,21 @@ impl LocalToAsm for Instruction {
 
                 Ok(Instruction::ALU(operation, reg1, reg2))
             }
+            "Jump" => {
+                let target = parts
+                    .get(1)
+                    .ok_or_else(|| anyhow::anyhow!("Jump instruction requires a target"))?;
+
+                let jump_target = if let Ok(address) = u16::from_str_radix(
+                    target.strip_prefix("0x").unwrap_or(target),
+                    if target.starts_with("0x") { 16 } else { 10 },
+                ) {
+                    JumpTarget::Address(address)
+                } else {
+                    JumpTarget::Label(target.to_string())
+                };
+                Ok(Instruction::Jump(jump_target))
+            }
             "Interrupt" => {
                 let value = parts
                     .get(1)
@@ -164,53 +197,77 @@ impl LocalToAsm for Instruction {
         }
     }
 
-    fn encode_u8(&self) -> EncodedInstruction {
+    fn encode_u8(&self) -> Result<EncodedInstruction> {
         match self {
-            Instruction::Nop => EncodedInstruction::SingleByte(0x00),
+            Instruction::Nop => Ok(EncodedInstruction::SingleByte(0x00)),
             Instruction::Push(value) => {
                 let opcode = 0x10;
-                EncodedInstruction::TwoBytes(opcode, *value)
+                Ok(EncodedInstruction::TwoBytes(opcode, *value))
             }
             Instruction::PopRegister(register) => {
                 let opcode = 0x20;
-                EncodedInstruction::SingleByte(opcode | ((*register as u8) & 0x0F))
+                Ok(EncodedInstruction::SingleByte(
+                    opcode | ((*register as u8) & 0x0F),
+                ))
             }
             Instruction::PushRegister(register) => {
                 let opcode = 0x30;
-                EncodedInstruction::SingleByte(opcode | ((*register as u8) & 0x0F))
+                Ok(EncodedInstruction::SingleByte(
+                    opcode | ((*register as u8) & 0x0F),
+                ))
             }
-            Instruction::AddStack => EncodedInstruction::SingleByte(0x40),
+            Instruction::AddStack => Ok(EncodedInstruction::SingleByte(0x40)),
             Instruction::LoadImmediate(reg, value) => {
                 let opcode = 0x50;
-                EncodedInstruction::TwoBytes(opcode | ((*reg as u8) & 0x0F), *value)
+                Ok(EncodedInstruction::TwoBytes(
+                    opcode | ((*reg as u8) & 0x0F),
+                    *value,
+                ))
             }
             Instruction::LoadMemory(reg, address) => {
                 let opcode = 0x60;
 
-                EncodedInstruction::ThreeBytes(
+                Ok(EncodedInstruction::ThreeBytes(
                     opcode | ((*reg as u8) & 0x0F),
                     (address >> 8) as u8,
                     (address & 0x00FF) as u8,
-                )
+                ))
             }
             Instruction::Store(reg, address) => {
                 let opcode = 0x70;
-                EncodedInstruction::ThreeBytes(
+                Ok(EncodedInstruction::ThreeBytes(
                     opcode | ((*reg as u8) & 0x0F),
                     (address >> 8) as u8,
                     (address & 0x00FF) as u8,
-                )
+                ))
             }
             Instruction::ALU(operation, reg1, reg2) => {
                 let opcode = 0x80;
-                EncodedInstruction::TwoBytes(
+                Ok(EncodedInstruction::TwoBytes(
                     opcode | ((*operation as u8) & 0xF),
                     ((*reg1 as u8) << 4) | (*reg2 as u8),
-                )
+                ))
+            }
+            Instruction::Jump(target) => {
+                let opcode = 0x90;
+                let address = match target {
+                    JumpTarget::Address(addr) => *addr,
+                    JumpTarget::Label(label) => {
+                        return Err(anyhow::anyhow!(
+                            "Unresolved label in Jump instruction = {label}"
+                        ))
+                    }
+                };
+
+                Ok(EncodedInstruction::ThreeBytes(
+                    opcode,
+                    (address >> 8) as u8,
+                    (address & 0x00FF) as u8,
+                ))
             }
             Instruction::Interrupt(value) => {
                 let opcode = 0xF0;
-                EncodedInstruction::SingleByte(opcode | *value)
+                Ok(EncodedInstruction::SingleByte(opcode | *value))
             }
         }
     }
@@ -224,15 +281,49 @@ fn main() -> Result<()> {
         .map_err(|_| anyhow::anyhow!("can't open the file, try giving a valid path."))?;
 
     let mut stdout = stdout().lock();
-    let mut bytes: Vec<u8> = Vec::new();
-    for line in BufReader::new(&file).lines() {
-        let line = line?;
-        if line.trim().is_empty() {
+    let lines: Vec<String> = BufReader::new(&file).lines().collect::<Result<_, _>>()?;
+
+    let mut labels = HashMap::new();
+    let mut current_address = 0u16;
+
+    for line in &lines {
+        // println!("{current_address}");
+        let line = line.trim();
+        if line.is_empty() || line.starts_with(';') {
             continue;
         }
+        if let Some(label) = line.strip_suffix(':') {
+            labels.insert(label.to_string(), current_address);
+        } else {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            let instruction = <Instruction as LocalToAsm>::from(parts)?;
+            current_address += instruction.size() as u16;
+        }
+    }
+    // println!("current address = {current_address}");
+
+    let mut bytes: Vec<u8> = Vec::new();
+    for line in &lines {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with(';') || line.ends_with(':') {
+            continue;
+        }
+
         let parts: Vec<&str> = line.split_whitespace().collect();
-        let result = <Instruction as LocalToAsm>::from(parts)?;
-        let encoded = <Instruction as LocalToAsm>::encode_u8(&result);
+        let mut result = <Instruction as LocalToAsm>::from(parts)?;
+
+        if let Instruction::Jump(ref mut address) = result {
+            match address {
+                JumpTarget::Label(label) => {
+                    if let Some(&label_address) = labels.get(&label.to_string()) {
+                        *address = JumpTarget::Address(label_address);
+                    }
+                }
+                JumpTarget::Address(addr) => *address = JumpTarget::Address(*addr),
+            }
+        }
+
+        let encoded = <Instruction as LocalToAsm>::encode_u8(&result)?;
         // println!("result = {:?}  |  encoded = {:?}", result, encoded);
         match encoded {
             EncodedInstruction::SingleByte(byte) => {

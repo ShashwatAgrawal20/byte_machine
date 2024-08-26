@@ -2,7 +2,7 @@ use anyhow::Result;
 use std::collections::HashMap;
 
 use crate::{
-    instructions::{ALUOperation, Instruction},
+    instructions::{ALUOperation, Instruction, JumpTarget},
     memory::Memory,
     registers::{Flags, Registers},
 };
@@ -133,6 +133,13 @@ impl Machine {
 
                 Ok(())
             }
+            Instruction::Jump(address) => {
+                match address {
+                    JumpTarget::Address(addr) => self.pc = addr,
+                    _ => todo!(),
+                }
+                Ok(())
+            }
             Instruction::Interrupt(signal) => {
                 let signal_function = self.interrupts.get(&signal).ok_or(anyhow::anyhow!(
                     "0x{:X} is not a valid signal, dumbass!",
@@ -260,6 +267,10 @@ impl Machine {
                     .ok_or(anyhow::anyhow!("Invalid register code: {}", next & 0xF))?;
 
                 Ok(Instruction::ALU(operation, reg1, reg2))
+            }
+            0x9 => {
+                let address = (self.fetch()? as u16) << 8 | self.fetch()? as u16;
+                Ok(Instruction::Jump(JumpTarget::Address(address)))
             }
             0xF => Ok(Instruction::Interrupt(args)),
             _ => Err(anyhow::anyhow!("Unknown opcode: {:X}", opcode)),

@@ -1,19 +1,11 @@
-Nop                    // No operation
-Push 200               // Push 60 onto the stack
-Push 100               // Push 9 onto the stack
-AddStack               // Add the top two values on the stack (60 + 9 = 69)
-PopRegister A          // Pop the result from the stack into register A (A = 69)
+start:
+    LoadImmediate A 60
+    LoadImmediate B 9
+    Jump computation
 
-LoadImmediate B 69     // Load the value 69 into register B
-PushRegister B         // Push the value of register B onto the stack
-Store B 0xFFFE         // Store the value of register B (69) in memory at address 0xFFFE
+end:
+    Interrupt 15
 
-LoadMemory C 0xFFFE    // Load the value from memory address 0xFFFE into register C (C = 69)
-ALU Add A B            // Add the values in registers A and B (A = 69 + 69 = 138)
-ALU Sub A A            // Subtract register A from itself (A - A = 0, Zero flag set)
-
-LoadImmediate A 2      // Load the value 2 into register A (A = 2)
-ALU Mul B A            // Multiply B by A (B = 69 * 2 = 138, no overflow)
-ALU Div B A            // Divide B by A (B = 138 / 2 = 69, no flags)
-
-Interrupt 15           // Trigger an interrupt with vector 15
+computation:
+   ALU Add A B
+   Jump end
