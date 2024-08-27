@@ -5,6 +5,7 @@ use crate::{
     instructions::{ALUOperation, Instruction, JumpTarget},
     memory::Memory,
     registers::{Flags, Registers},
+    JumpCondition,
 };
 
 type Interrupt = fn(&mut Machine) -> Result<()>;
@@ -140,6 +141,22 @@ impl Machine {
                 }
                 Ok(())
             }
+            Instruction::JumpConditional(condition, address) => {
+                // println!("here in JumpConditional");
+                let should_jump = match condition {
+                    JumpCondition::EQ => self.is_flag_set(Flags::Zero),
+                    JumpCondition::NEQ => !self.is_flag_set(Flags::Zero),
+                    JumpCondition::LT => self.is_flag_set(Flags::Overflow),
+                    _ => todo!(),
+                };
+                if should_jump {
+                    match address {
+                        JumpTarget::Address(addr) => self.pc = addr,
+                        _ => todo!(),
+                    }
+                }
+                Ok(())
+            }
             Instruction::Interrupt(signal) => {
                 let signal_function = self.interrupts.get(&signal).ok_or(anyhow::anyhow!(
                     "0x{:X} is not a valid signal, dumbass!",
@@ -271,6 +288,16 @@ impl Machine {
             0x9 => {
                 let address = (self.fetch()? as u16) << 8 | self.fetch()? as u16;
                 Ok(Instruction::Jump(JumpTarget::Address(address)))
+            }
+            0xA => {
+                let condition = JumpCondition::from_u8_custom(args)
+                    .ok_or(anyhow::anyhow!("Invalid condition code: {}", args))?;
+
+                let address = (self.fetch()? as u16) << 8 | self.fetch()? as u16;
+                Ok(Instruction::JumpConditional(
+                    condition,
+                    JumpTarget::Address(address),
+                ))
             }
             0xF => Ok(Instruction::Interrupt(args)),
             _ => Err(anyhow::anyhow!("Unknown opcode: {:X}", opcode)),

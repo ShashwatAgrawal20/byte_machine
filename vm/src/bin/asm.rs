@@ -8,7 +8,7 @@ use std::{
     path::Path,
 };
 
-use vm::{ALUOperation, Instruction, JumpTarget, Registers};
+use vm::{ALUOperation, Instruction, JumpCondition, JumpTarget, Registers};
 
 #[derive(Debug)]
 enum EncodedInstruction {
@@ -38,6 +38,7 @@ impl LocalToAsm for Instruction {
             Instruction::Store(_, _) => 3,
             Instruction::ALU(_, _, _) => 2,
             Instruction::Jump(_) => 3,
+            Instruction::JumpConditional(_, _) => 3,
             Instruction::Interrupt(_) => 1,
         }
     }
@@ -182,6 +183,32 @@ impl LocalToAsm for Instruction {
                 };
                 Ok(Instruction::Jump(jump_target))
             }
+            "JumpConditional" => {
+                let condition = parts
+                    .get(1)
+                    .ok_or_else(|| {
+                        anyhow::anyhow!("JumpConditional instruction requires a Condition")
+                    })
+                    .and_then(|conditional_str| {
+                        JumpCondition::from_str_custom(conditional_str)
+                            .ok_or_else(|| anyhow::anyhow!("Invalid Condition for JumpConditional"))
+                    })?;
+
+                let target = parts.get(2).ok_or_else(|| {
+                    anyhow::anyhow!("JumpConditional instruction requires a target")
+                })?;
+
+                let jump_target = if let Ok(address) = u16::from_str_radix(
+                    target.strip_prefix("0x").unwrap_or(target),
+                    if target.starts_with("0x") { 16 } else { 10 },
+                ) {
+                    JumpTarget::Address(address)
+                } else {
+                    JumpTarget::Label(target.to_string())
+                };
+
+                Ok(Instruction::JumpConditional(condition, jump_target))
+            }
             "Interrupt" => {
                 let value = parts
                     .get(1)
@@ -265,6 +292,23 @@ impl LocalToAsm for Instruction {
                     (address & 0x00FF) as u8,
                 ))
             }
+            Instruction::JumpConditional(condition, target) => {
+                let opcode = 0xA0;
+                let address = match target {
+                    JumpTarget::Address(addr) => *addr,
+                    JumpTarget::Label(label) => {
+                        return Err(anyhow::anyhow!(
+                            "Unresolved label in JumpConditional instruction = {label}"
+                        ))
+                    }
+                };
+
+                Ok(EncodedInstruction::ThreeBytes(
+                    opcode | ((*condition as u8) & 0xF),
+                    (address >> 8) as u8,
+                    (address & 0x00FF) as u8,
+                ))
+            }
             Instruction::Interrupt(value) => {
                 let opcode = 0xF0;
                 Ok(EncodedInstruction::SingleByte(opcode | *value))
@@ -313,6 +357,17 @@ fn main() -> Result<()> {
         let mut result = <Instruction as LocalToAsm>::from(parts)?;
 
         if let Instruction::Jump(ref mut address) = result {
+            match address {
+                JumpTarget::Label(label) => {
+                    if let Some(&label_address) = labels.get(&label.to_string()) {
+                        *address = JumpTarget::Address(label_address);
+                    }
+                }
+                JumpTarget::Address(addr) => *address = JumpTarget::Address(*addr),
+            }
+        }
+
+        if let Instruction::JumpConditional(_, ref mut address) = result {
             match address {
                 JumpTarget::Label(label) => {
                     if let Some(&label_address) = labels.get(&label.to_string()) {

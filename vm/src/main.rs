@@ -7,7 +7,7 @@ use std::{
 };
 
 use vm::interrupts::halt_interrupt;
-use vm::{Flags, Machine, Registers};
+use vm::{Machine, Registers};
 
 fn main() -> Result<()> {
     let mut vm = Machine::new();
@@ -45,8 +45,8 @@ fn main() -> Result<()> {
     while !vm.halt {
         vm.step()?;
         println!("{}", vm.state());
-        vm.clear_flag(Flags::Zero);
-        vm.clear_flag(Flags::Overflow);
+        // vm.clear_flag(Flags::Zero);
+        // vm.clear_flag(Flags::Overflow);
     }
     println!("reg A = {}", vm.registers[Registers::A as usize]);
     Ok(())

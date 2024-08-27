@@ -1,11 +1,20 @@
-start:
-    LoadImmediate A 60
-    LoadImmediate B 9
-    Jump computation
+LoadImmediate A 0        				; Load the value 0 into register A
+LoadImmediate B 5        				; Load the value 5 into register B
+Store A 0xfffc           				; Store the value in register A (which is 0) into memory address 0xfffc
+
+loop:
+    ALU Sub A B          				; Subtract the value in register B from the value in register A (A = A - B)
+    JumpConditional LT incrementer 		; If the result of A - B is less than zero (A < B), jump to the 'incrementer' label
+    Jump end             				; If the result of A - B is not less than zero, jump to the 'end' label
+
+incrementer:
+    LoadMemory A 0xfffc  				; Load the value from memory address 0xfffc into register A
+    LoadImmediate C 1    				; Load the value 1 into register C
+    ALU Add A C          				; Add the value in register C (which is 1) to the value in register A (A = A + 1)
+    Store A 0xfffc       				; Store the updated value in register A back into memory address 0xfffc
+    Jump loop            				; Jump back to the 'loop' label to repeat the process
 
 end:
-    Interrupt 15
+    LoadMemory A 0xfffc  				; Load the final value from memory address 0xfffc into register A
+    Interrupt 15         				; Trigger interrupt 15, possibly to end the program or signal completion
 
-computation:
-   ALU Add A B
-   Jump end

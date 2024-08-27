@@ -2,17 +2,17 @@ use crate::Registers;
 
 #[derive(Debug)]
 pub enum Instruction {
-    Nop,                                     // 0000 0000
-    Push(u8),                                // 0001 xxxx | iiiiiiii
-    PopRegister(Registers),                  // 0010 rrrr
-    PushRegister(Registers),                 // 0011 rrrr
-    AddStack,                                // 0100 0000
-    LoadImmediate(Registers, u8),            // 0101 rrrr | iiiiiiii
-    LoadMemory(Registers, u16),              // 0110 rrrr | aaaaaaaa | aaaaaaaa
-    Store(Registers, u16),                   // 0111 rrrr | aaaaaaaa | aaaaaaaa
-    ALU(ALUOperation, Registers, Registers), // 1000 oooo | rrrr | rrrr
-    Jump(JumpTarget),                        // 1001 0000 | aaaaaaaa | aaaaaaaa
-    // JumpConditional(JumpCondition, u16),     // 1010 cccc | aaaaaaaa | aaaaaaaa
+    Nop,                                        // 0000 0000
+    Push(u8),                                   // 0001 xxxx | iiiiiiii
+    PopRegister(Registers),                     // 0010 rrrr
+    PushRegister(Registers),                    // 0011 rrrr
+    AddStack,                                   // 0100 0000
+    LoadImmediate(Registers, u8),               // 0101 rrrr | iiiiiiii
+    LoadMemory(Registers, u16),                 // 0110 rrrr | aaaaaaaa | aaaaaaaa
+    Store(Registers, u16),                      // 0111 rrrr | aaaaaaaa | aaaaaaaa
+    ALU(ALUOperation, Registers, Registers),    // 1000 oooo | rrrr | rrrr
+    Jump(JumpTarget),                           // 1001 0000 | aaaaaaaa | aaaaaaaa
+    JumpConditional(JumpCondition, JumpTarget), // 1010 cccc | aaaaaaaa | aaaaaaaa
     // Call(u16),                               // 1011 0000 | aaaaaaaa | aaaaaaaa
     // Return,                                  // 1100 0000
     Interrupt(u8), // 1111 iiii
@@ -32,16 +32,40 @@ pub enum ALUOperation {
     Div, // 0011
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum JumpCondition {
-    Always,   // 0000
-    Zero,     // 0001
-    NotZero,  // 0010
-    Carry,    // 0011
-    NotCarry, // 0100
-    Negative, // 0101
-    Positive, // 0110
-    Overflow, // 0111
+    LT,  // 0000
+    GT,  // 0001
+    EQ,  // 0010
+    NEQ, // 0011
+    GE,  // 0100
+    LE,  // 0101
+}
+
+impl JumpCondition {
+    pub fn from_u8_custom(value: u8) -> Option<Self> {
+        match value {
+            0 => Some(JumpCondition::LT),
+            1 => Some(JumpCondition::GT),
+            2 => Some(JumpCondition::EQ),
+            3 => Some(JumpCondition::NEQ),
+            4 => Some(JumpCondition::GE),
+            5 => Some(JumpCondition::LE),
+            _ => None,
+        }
+    }
+
+    pub fn from_str_custom(value: &str) -> Option<Self> {
+        match value {
+            "LT" => Some(JumpCondition::LT),
+            "GT" => Some(JumpCondition::GT),
+            "EQ" => Some(JumpCondition::EQ),
+            "NEQ" => Some(JumpCondition::NEQ),
+            "GE" => Some(JumpCondition::GE),
+            "LE" => Some(JumpCondition::LE),
+            _ => None,
+        }
+    }
 }
 
 impl ALUOperation {
