@@ -13,9 +13,7 @@ pub enum Instruction {
     ALU(ALUOperation, Registers, Registers),    // 1000 oooo | rrrr | rrrr
     Jump(JumpTarget),                           // 1001 0000 | aaaaaaaa | aaaaaaaa
     JumpConditional(JumpCondition, JumpTarget), // 1010 cccc | aaaaaaaa | aaaaaaaa
-    // Call(u16),                               // 1011 0000 | aaaaaaaa | aaaaaaaa
-    // Return,                                  // 1100 0000
-    Interrupt(u8), // 1111 iiii
+    Interrupt(u8),                              // 1111 iiii
 }
 
 #[derive(Debug)]
